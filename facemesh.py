@@ -12,6 +12,7 @@ import torch.nn.functional as F
 import torch.backends.cudnn as cudnn
 import torch.optim
 import torch.utils.data 
+from torchvision import transforms
 from skimage import io, transform
 
 
@@ -265,6 +266,14 @@ class FaceMeshDataset(torch.utils.data.Dataset):
         landmarks = landmarks.astype('float').reshape(-1, 3)
         # sample = {'image': image, 'landmarks': landmarks}
 
+        # image = torch.as_tensor(image, dtype=torch.float32)
+        # landmarks = torch.as_tensor(landmarks, dtype=torch.float32) 
+
+        trans = transforms.Compose([transforms.ToTensor()])
+
+        image = trans(image)     
+        landmarks = trans(landmarks)
+
         if self.transform:
             image = self.transform(image)
 
@@ -284,9 +293,11 @@ def train(train_loader, model, criterion, optimizer, epoch):
     for i, (input, target) in enumerate(train_loader):
         # measure data loading time
         data_time.update(time.time() - end)
-        # target = target.cuda(async=True)
-        input_var = torch.autograd.Variable(input)
-        target_var = torch.autograd.Variable(target)
+        target = target.cuda(non_blocking=True)
+        # input_var = torch.autograd.Variable(input)
+        # target_var = torch.autograd.Variable(target)
+        input_var = input.cuda()
+        target_var = target.cuda()
 
         # compute output
         output = model(input_var)
@@ -328,8 +339,8 @@ def validate(val_loader, model, criterion):
 
     end = time.time()
     for i, (input, target) in enumerate(val_loader):
-        # target = target.cuda(async=True)
-        input_var  = input.cuda()
+        target = target.cuda(non_blocking=True)
+        input_var = input.cuda()
         target_var = target
 
         # compute output
@@ -440,7 +451,6 @@ def main():
                                 weight_decay=args.weight_decay)
 
     # optionally resume from a checkpoint
-    print(args.resume)
     if args.resume:
         if os.path.isfile(args.resume):
             print("=> loading checkpoint '{}'".format(args.resume))
