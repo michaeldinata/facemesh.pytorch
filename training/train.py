@@ -39,7 +39,7 @@ def GetDataLoaders(config, dsets):
 
 # Initialize Model Here
 def InitializeModel(config):
-    model = 
+    model = network.FaceMesh()
     return model
 
 def ResumeModel(config, model):

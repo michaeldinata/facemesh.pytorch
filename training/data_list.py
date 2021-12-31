@@ -3,6 +3,7 @@ import random
 from PIL import Image
 import os
 import cv2
+import pandas as pd
 
 
 def MakeDir(path):
@@ -28,14 +29,25 @@ class ImageList(object):
         self.path = path
         self.phase = phase
         self.transform = transform
-        self.target_transform = transform
+        self.target_transform = target_transform
         self.loader = loader
+
+        # csv_path = os.path.join(self.path, 'face_mesh_landmarks.csv')
+        self.csv_file = pd.read_csv(self.path + 'face_mesh_landmarks.csv')
+        self.images_path = self.path + '/images'
 
 
     def __getitem__(self, index):
+        img_path = os.path.join(self.images_path,
+                                self.csv_file.iloc[index, 0])
+        img = default_loader(img_path)
+
+        target = self.csv_file.iloc[index, 1:]
+        target = np.asarray(target)
+        target = target.astype('float').reshape(-1, 3)
 
         return img, target
 
     def __len__(self):
-        # return len
+        return len(self.csv_file)
 

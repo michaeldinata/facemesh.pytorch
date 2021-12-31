@@ -154,7 +154,6 @@ class FaceMesh(nn.Module):
         )
         
     def forward(self, x):
-        print(x.size())
         # TFLite uses slightly different padding on the first conv layer
         # than PyTorch, so do it manually.
         x = nn.ReflectionPad2d((1, 0, 1, 0))(x)
@@ -274,7 +273,6 @@ class FaceMeshDataset(torch.utils.data.Dataset):
 
         image = trans(image)     
         landmarks = trans(landmarks)
-        # print(image.size(), landmarks.size())
 
         if self.transform:
             image = self.transform(image)
@@ -298,18 +296,11 @@ def train(train_loader, model, criterion, optimizer, epoch):
         target = target.cuda(non_blocking=True)
         # input_var = torch.autograd.Variable(input)
         # target_var = torch.autograd.Variable(target)
-        
         input_var = input.cuda()
         target_var = target.cuda()
-        print("line 304: {}".format(input_var.size()))
 
         # compute output
         output = model(input_var)
-        print(output[0].shape, output[1].shape)
-        print(target.shape)
-        # output = outputs[0]
-        # trans = transforms.Compose([transforms.ToTensor()])
-        # output = trans(outputs)
         loss = criterion(output, target_var)
 
         # measure accuracy and record loss
@@ -453,8 +444,7 @@ def main():
     model = torch.nn.DataParallel(model).cuda()
 
     # define loss function (criterion) and optimizer
-    # criterion = nn.CrossEntropyLoss().cuda()
-    criterion = nn.MSELoss().cuda()
+    criterion = nn.CrossEntropyLoss().cuda()
 
     optimizer = torch.optim.SGD(model.parameters(), args.lr,
                                 momentum=args.momentum,
@@ -481,7 +471,7 @@ def main():
     valdir = os.path.join(args.data, 'val')
     # normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
     #                                  std=[0.229, 0.224, 0.225])
-    facemesh_dataset = FaceMeshDataset(csv_file='data/face_mesh_landmarks.csv', root_dir='data/images')
+    facemesh_dataset = FaceMeshDataset(csv_file='training_data/face_mesh_landmarks.csv', root_dir='training_data/images')
     if args.evaluate:
         val_loader = torch.utils.data.DataLoader(
         datasets.ImageFolder(valdir, transforms.Compose([
