@@ -33,7 +33,7 @@ class ImageList(object):
         self.loader = loader
 
         # csv_path = os.path.join(self.path, 'face_mesh_landmarks.csv')
-        self.csv_file = pd.read_csv(self.path + 'face_mesh_landmarks.csv')
+        self.csv_file = pd.read_csv(self.path + '/face_mesh_landmarks.csv')
         self.images_path = self.path + '/images'
 
 
@@ -46,6 +46,12 @@ class ImageList(object):
         target = np.asarray(target)
         target = target.astype('float').reshape(-1, 3)
 
+        if self.transform is not None:
+            img = self.transform(img, flip = False, offset_x = 0, offset_y = 0, aug = True)
+        if self.target_transform is not None:
+            target = self.target_transform(target, flip = False, offset_x = 0, offset_y = 0)
+
+        print(img.size())
         return img, target
 
     def __len__(self):
