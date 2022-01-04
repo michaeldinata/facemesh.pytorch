@@ -119,6 +119,7 @@ class FaceMesh(nn.Module):
         
         r = self.coord_head(x)          # (b, 1404, 1, 1)
         r = r.reshape(b, -1)            # (b, 1404)
+        print(b)
         
         return [r, c]
 

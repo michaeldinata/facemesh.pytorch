@@ -88,6 +88,8 @@ def main(config):
         param_lr.append(param_group['lr'])
     lr_scheduler = lr_schedule.schedule_dict[config.lr_type]
 
+    # res_file = open(
+    #     config.write_res_prefix + config.run_name + '/pred_' + str(config.start_epoch) + '.txt', 'w')
 
     '''
         Training Loop Starts Here!!!!
@@ -128,12 +130,39 @@ def main(config):
             pred = model(input)
             ## Define Loss Function Here
 
+            print(pred[0].size(), pred[1].size())
+            print(target.size())
+            total_loss = F.nll_loss(pred, target)
+
+            # region_feat = region_learning(input)
+            # align_feat, align_output, aus_map = align_net(region_feat)
+            # if use_gpu:
+            #     aus_map = aus_map.cuda()
+            # output_aus_map = local_attention_refine(aus_map.detach())
+            # local_au_out_feat, local_aus_output = local_au_net(region_feat, output_aus_map)
+            # global_au_out_feat = global_au_feat(region_feat)
+            # concat_au_feat = torch.cat((align_feat, global_au_out_feat, local_au_out_feat.detach()), 1)
+            # aus_output = au_net(concat_au_feat)
+
+            # loss_au_softmax = au_softmax_loss(aus_output, au, weight=au_weight)
+            # loss_au_dice = au_dice_loss(aus_output, au, weight=au_weight)
+            # loss_au = loss_au_softmax + loss_au_dice
+
+            # loss_local_au_softmax = au_softmax_loss(local_aus_output, au, weight=au_weight)
+            # loss_local_au_dice = au_dice_loss(local_aus_output, au, weight=au_weight)
+            # loss_local_au = loss_local_au_softmax + loss_local_au_dice
+
+            # loss_land = landmark_loss(align_output, land, biocular)
+
+            # total_loss = config.lambda_au * (loss_au + loss_local_au) + \
+            #              config.lambda_land * loss_land
+
             ####
             total_loss.backward()
             optimizer.step()
             count = count + 1
 
-    res_file.close()
+    # res_file.close()
 
 
 if __name__ == '__main__':

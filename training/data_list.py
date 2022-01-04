@@ -51,7 +51,7 @@ class ImageList(object):
         if self.target_transform is not None:
             target = self.target_transform(target, flip = False, offset_x = 0, offset_y = 0)
 
-        print(img.size())
+        # print(img.size())
         return img, target
 
     def __len__(self):
