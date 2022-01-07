@@ -1,4 +1,6 @@
 # Define Network here.
+import numpy as np
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
@@ -29,7 +31,7 @@ class FaceMeshBlock(nn.Module):
         )
 
         self.act = nn.PReLU(out_channels)
-
+        self.bn = nn.BatchNorm2d(out_channels)
     def forward(self, x):
         if self.stride == 2:
             h = F.pad(x, (0, 2, 0, 2), "constant", 0)
@@ -40,7 +42,7 @@ class FaceMeshBlock(nn.Module):
         if self.channel_pad > 0:
             x = F.pad(x, (0, 0, 0, 0, 0, self.channel_pad), "constant", 0)
         
-        return self.act(self.convs(h) + x)
+        return self.act(self.bn(self.convs(h) + x))
 
 
 class FaceMesh(nn.Module):
@@ -70,6 +72,7 @@ class FaceMesh(nn.Module):
     def _define_layers(self):
         self.backbone = nn.Sequential(
             nn.Conv2d(in_channels=3, out_channels=16, kernel_size=3, stride=2, padding=0, bias=True),
+            nn.BatchNorm2d(16),
             nn.PReLU(16),
 
             FaceMeshBlock(16, 16),
@@ -93,6 +96,7 @@ class FaceMesh(nn.Module):
             FaceMeshBlock(128, 128),
             FaceMeshBlock(128, 128),
             nn.Conv2d(128, 32, 1),
+            nn.BatchNorm2d(32),
             nn.PReLU(32),
             FaceMeshBlock(32, 32),
             nn.Conv2d(32, 1404, 3)
@@ -101,91 +105,103 @@ class FaceMesh(nn.Module):
         self.conf_head = nn.Sequential(
             FaceMeshBlock(128, 128, stride=2),
             nn.Conv2d(128, 32, 1),
+            nn.BatchNorm2d(32),
             nn.PReLU(32),
             FaceMeshBlock(32, 32),
             nn.Conv2d(32, 1, 3)
         )
         
     def forward(self, x):
+        # print ("-"*30)
+        # print (x.size())
         # TFLite uses slightly different padding on the first conv layer
         # than PyTorch, so do it manually.
         x = nn.ReflectionPad2d((1, 0, 1, 0))(x)
         b = x.shape[0]      # batch size, needed for reshaping later
-
+        # print(x.size())
         x = self.backbone(x)            # (b, 128, 6, 6)
+        # print(x.size())
         
         c = self.conf_head(x)           # (b, 1, 1, 1)
+        # print(c.size())
         c = c.view(b, -1)               # (b, 1)
+        
         
         r = self.coord_head(x)          # (b, 1404, 1, 1)
         r = r.reshape(b, -1)            # (b, 1404)
-        print(b)
         
+        # print ("-"*30)
+        # print("r:")
+        # print(r)
+        # print ("-"*30)
         return [r, c]
 
-    def _device(self):
-        """Which device (CPU or GPU) is being used by this model?"""
-        return self.conf_head[1].weight.device
+    # def _device(self):
+    #     """Which device (CPU or GPU) is being used by this model?"""
+    #     return self.conf_head[1].weight.device
     
-    def load_weights(self, path):
-        self.load_state_dict(torch.load(path))
-        self.eval()        
+    # def load_weights(self, path):
+    #     self.load_state_dict(torch.load(path))
+    #     self.eval()        
     
-    def _preprocess(self, x):
-        """Converts the image pixels to the range [-1, 1]."""
-        return x.float() / 127.5 - 1.0
+    # def _preprocess(self, x):
+    #     """Converts the image pixels to the range [-1, 1]."""
+    #     return x.float() / 127.5 - 1.0
 
-    def predict_on_image(self, img):
-        """Makes a prediction on a single image.
+    # def predict_on_image(self, img):
+    #     """Makes a prediction on a single image.
 
-        Arguments:
-            img: a NumPy array of shape (H, W, 3) or a PyTorch tensor of
-                 shape (3, H, W). The image's height and width should be 
-                 128 pixels.
+    #     Arguments:
+    #         img: a NumPy array of shape (H, W, 3) or a PyTorch tensor of
+    #              shape (3, H, W). The image's height and width should be 
+    #              128 pixels.
 
-        Returns:
-            A tensor with face detections.
-        """
-        if isinstance(img, np.ndarray):
-            img = torch.from_numpy(img).permute((2, 0, 1))
+    #     Returns:
+    #         A tensor with face detections.
+    #     """
+    #     if isinstance(img, np.ndarray):
+    #         img = torch.from_numpy(img).permute((2, 0, 1))
 
-        return self.predict_on_batch(img.unsqueeze(0))[0]
+    #     return self.predict_on_batch(img.unsqueeze(0))[0]
 
-    def predict_on_batch(self, x):
-        """Makes a prediction on a batch of images.
+    # def predict_on_batch(self, x):
+    #     """Makes a prediction on a batch of images.
 
-        Arguments:
-            x: a NumPy array of shape (b, H, W, 3) or a PyTorch tensor of
-               shape (b, 3, H, W). The height and width should be 128 pixels.
+    #     Arguments:
+    #         x: a NumPy array of shape (b, H, W, 3) or a PyTorch tensor of
+    #            shape (b, 3, H, W). The height and width should be 128 pixels.
 
-        Returns:
-            A list containing a tensor of face detections for each image in 
-            the batch. If no faces are found for an image, returns a tensor
-            of shape (0, 17).
+    #     Returns:
+    #         A list containing a tensor of face detections for each image in 
+    #         the batch. If no faces are found for an image, returns a tensor
+    #         of shape (0, 17).
 
-        Each face detection is a PyTorch tensor consisting of 17 numbers:
-            - ymin, xmin, ymax, xmax
-            - x,y-coordinates for the 6 keypoints
-            - confidence score
-        """
-        if isinstance(x, np.ndarray):
-            x = torch.from_numpy(x).permute((0, 3, 1, 2))
+    #     Each face detection is a PyTorch tensor consisting of 17 numbers:
+    #         - ymin, xmin, ymax, xmax
+    #         - x,y-coordinates for the 6 keypoints
+    #         - confidence score
+    #     """
+    #     if isinstance(x, np.ndarray):
+    #         x = torch.from_numpy(x).permute((0, 3, 1, 2))
 
-        assert x.shape[1] == 3
-        assert x.shape[2] == 192
-        assert x.shape[3] == 192
+    #     assert x.shape[1] == 3
+    #     assert x.shape[2] == 192
+    #     assert x.shape[3] == 192
 
-        # 1. Preprocess the images into tensors:
-        x = x.to(self._device())
-        x = self._preprocess(x)
+    #     # 1. Preprocess the images into tensors:
+    #     x = x.to(self._device())
+    #     x = self._preprocess(x)
 
-        # 2. Run the neural network:
-        with torch.no_grad():
-            out = self.__call__(x)
+    #     # 2. Run the neural network:
+    #     with torch.no_grad():
+    #         out = self.__call__(x)
 
-        # 3. Postprocess the raw predictions:
-        detections, confidences = out
-        detections[0:-1:3] *= self.x_scale
-        detections[1:-1:3] *= self.y_scale
+    #     # 3. Postprocess the raw predictions:
+    #     detections, confidences = out
+    #     print(detections)
+    #     print(self.x_scale, self.y_scale)
+    #     detections[0:-1:3] *= self.x_scale
+    #     detections[1:-1:3] *= self.y_scale
+    #     print(detections)
 
-        return detections.view(-1, 3), confidences
+    #     return detections.view(-1, 3), confidences

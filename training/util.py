@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import numpy as np
 import sklearn
 from sklearn.metrics import accuracy_score, f1_score
@@ -106,6 +107,19 @@ def save_img_with_au(img, auoccur, index, name, path):
                 
     img.save(path + name + "__" + str(index) + "______" + au_str + '.png')
     return img
+
+def detection_eval(loader, model, use_gpu=False):
+    for i, batch in enumerate(loader):
+        input, target = batch
+
+        if use_gpu:
+            input = input.float().cuda()
+            target = target.float().cuda()
+
+        pred = model(input)
+        detections, confidences = pred
+        mse_loss = F.mse_loss(detections, target)
+        return mse_loss
 
 
 # def AU_detection_evalv1(loader, region_learning, align_net, local_attention_refine,

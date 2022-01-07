@@ -14,19 +14,15 @@ import lr_schedule
 from util import *
 from data_list import ImageList
 
+def MakeDir(path):
+    if (not os.path.exists(path)):
+        os.mkdir(path)
 
 def GetDatasets(config):
     apply_cropping = config.apply_cropping
     dsets = {}
-
-    dsets['train'] = ImageList(path=config.train_path_prefix,
-                            transform=prep.image_train(crop_size=config.crop_size),
-                            target_transform=prep.land_transform(img_size=config.crop_size,flip_reflect=np.loadtxt(config.flip_reflect)))
-
-    dsets['test'] = ImageList(path=config.test_path_prefix, 
-                            phase='test',
-                            transform=prep.image_test(crop_size=config.crop_size),
-                            target_transform=prep.land_transform(img_size=config.crop_size,flip_reflect=np.loadtxt(config.flip_reflect)))
+    dsets['train'] = ImageList(path=config.train_path_prefix)
+    dsets['test'] = ImageList(path=config.test_path_prefix, phase='test')
     return dsets
 
 def GetDataLoaders(config, dsets):
@@ -45,20 +41,22 @@ def InitializeModel(config):
     return model
 
 def ResumeModel(config, model):
-    model.load_state_dict(torch.load(''))
+    model.load_state_dict(torch.load(config.resume_model_path))
 
 def InitializeOptimizer(config, model):
     optim_dict = {'SGD': optim.SGD, 'Adam': optim.Adam}
-    model_parameter_list = [{'params': filter(lambda p: p.requires_grad, model.parameters()), 'lr': 1}]
-    optimizer = optim_dict[config.optimizer_type](itertools.chain(model_parameter_list),lr=1.0, momentum=config.momentum, weight_decay=config.weight_decay,nesterov=config.use_nesterov)
+    model_parameter_list = [{'params': filter(lambda p: p.requires_grad, model.parameters()), 'lr': 1.0}]
+    optimizer = optim_dict[config.optimizer_type](itertools.chain(model_parameter_list),lr=config.init_lr, momentum=config.momentum, weight_decay=config.weight_decay,nesterov=config.use_nesterov)
     return optimizer
 
 def TakeSnapshot(config, model, epoch):
     print('taking snapshot ...')
-    torch.save(model.state_dict(),'')
+    torch.save(model.state_dict(),'./Snapshots/' + str(epoch) + '.pth')
 
 
 def main(config):
+    MakeDir("./Snapshots/")
+
     ## set loss criterion
     use_gpu = torch.cuda.is_available()
     
@@ -71,11 +69,16 @@ def main(config):
     ## set network modules
     print ("Getting Networks!!")
     model = InitializeModel(config)
-    
+    # model.load_state_dict(torch.load('facemesh.pth'))
+
+
     if config.start_epoch > 0:
         print('resuming model from epoch %d' %(config.start_epoch))
         ResumeModel(config, model)
     print ("Network fetch successful!")
+
+    # for param_tensor in model.state_dict():
+    #     print(param_tensor, "\t", model.state_dict()[param_tensor].size())
 
     if use_gpu:
         model = model.cuda()
@@ -96,21 +99,23 @@ def main(config):
     '''
     count = 0
     for epoch in range(config.start_epoch, config.n_epochs + 1):
-        if epoch > config.start_epoch:
+        if epoch > config.start_epoch and epoch % 5 == 0:
             TakeSnapshot(config, model, epoch)
 
         if epoch > config.start_epoch:
             print('testing ...')
             model.train(False)
-            f1score_arr, acc_arr, mean_error, failure_rate = detection_eval(dset_loaders['test'], model, use_gpu=use_gpu)
-            print('epoch =%d, f1 score mean=%f, accuracy mean=%f, mean error=%f, failure rate=%f'
-                  % (epoch, f1score_arr.mean(), acc_arr.mean(), mean_error, failure_rate))
+            mse_loss = detection_eval(dset_loaders['test'], model, use_gpu=use_gpu)
+            print('mean_error=%f' % (mse_loss))
             model.train(True)
 
         if epoch >= config.n_epochs:
             break
-
+        
+        total_mse_batch = 0
+        epoch_iterations = 0
         for i, batch in enumerate(dset_loaders['train']):
+            # print(optimizer.param_groups[0]['lr'])
             if (i % config.display == 0 and count > 0):
                 print('[epoch = %d][iter = %d][total_loss = %f]' % (epoch, i,total_loss.data.cpu().numpy()))
                 print('learning rate = %f' % (optimizer.param_groups[0]['lr']))
@@ -119,49 +124,34 @@ def main(config):
             input, target = batch
 
             if use_gpu:
-                input = input.cuda()
-                target = target.long().cuda()
+                input = input.float().cuda()
+                target = target.float().cuda()
             else:
-                au = au.long()
+                target = target.float()
 
             optimizer = lr_scheduler(param_lr, optimizer, epoch, config.gamma, config.stepsize, config.init_lr)
-            optimizer.zero_grad()
 
+            optimizer.zero_grad()
+            # print (input.size())
             pred = model(input)
             ## Define Loss Function Here
-
-            print(pred[0].size(), pred[1].size())
-            print(target.size())
-            total_loss = F.nll_loss(pred, target)
-
-            # region_feat = region_learning(input)
-            # align_feat, align_output, aus_map = align_net(region_feat)
-            # if use_gpu:
-            #     aus_map = aus_map.cuda()
-            # output_aus_map = local_attention_refine(aus_map.detach())
-            # local_au_out_feat, local_aus_output = local_au_net(region_feat, output_aus_map)
-            # global_au_out_feat = global_au_feat(region_feat)
-            # concat_au_feat = torch.cat((align_feat, global_au_out_feat, local_au_out_feat.detach()), 1)
-            # aus_output = au_net(concat_au_feat)
-
-            # loss_au_softmax = au_softmax_loss(aus_output, au, weight=au_weight)
-            # loss_au_dice = au_dice_loss(aus_output, au, weight=au_weight)
-            # loss_au = loss_au_softmax + loss_au_dice
-
-            # loss_local_au_softmax = au_softmax_loss(local_aus_output, au, weight=au_weight)
-            # loss_local_au_dice = au_dice_loss(local_aus_output, au, weight=au_weight)
-            # loss_local_au = loss_local_au_softmax + loss_local_au_dice
-
-            # loss_land = landmark_loss(align_output, land, biocular)
-
-            # total_loss = config.lambda_au * (loss_au + loss_local_au) + \
-            #              config.lambda_land * loss_land
-
-            ####
+            detections, confidences = pred
+            # print (detections)
+            # print (target)
+            # print (total_loss)
+            # exit()
+            total_loss = F.mse_loss(detections, target)
+            # print (detections)
+            # print (target)
+            # print (total_loss)
+            total_mse_batch += total_loss
+            epoch_iterations += 1
             total_loss.backward()
             optimizer.step()
             count = count + 1
-
+        print ("-------------------------------")
+        print ("Total Loss Epoch : " + str(total_mse_batch/epoch_iterations))
+        print("--------------------------------")
     # res_file.close()
 
 

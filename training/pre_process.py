@@ -95,12 +95,12 @@ class image_train(object):
         img = transform(img)
         return img
 
-def image_test(crop_size=176):
+def image_test(crop_size=192):
     normalize = transforms.Normalize(mean=[0.5, 0.5, 0.5],
                                      std=[0.5, 0.5, 0.5])
     return transforms.Compose([
         transforms.CenterCrop(crop_size),
-        transforms.Resize(128),
+        transforms.Resize(crop_size),
         transforms.ToTensor(),
         normalize
     ])
