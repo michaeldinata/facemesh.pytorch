@@ -10,6 +10,7 @@ apply_cropping = True
 crop_size = 192
 train_batch_size = 16
 eval_batch_size = 16
+test_batch_size = 16
 num_workers = 1
 run_name = 'facemesh'
 
@@ -27,7 +28,8 @@ init_lr = 0.01
 
 # directories
 train_path_prefix = '../dataset/training_data'
-test_path_prefix = '../dataset/training_data'
+eval_path_prefix = '../dataset/eval_data'
+test_path_prefix = '../dataset/test_data'
 write_res_prefix = '../data/res/'
 flip_reflect = '../data/reflect.txt'
 resume_model_path = '../facemesh.pth'

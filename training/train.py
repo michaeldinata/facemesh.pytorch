@@ -22,6 +22,7 @@ def GetDatasets(config):
     apply_cropping = config.apply_cropping
     dsets = {}
     dsets['train'] = ImageList(path=config.train_path_prefix)
+    dsets['eval'] = ImageList(path=config.eval_path_prefix, phase='eval')
     dsets['test'] = ImageList(path=config.test_path_prefix, phase='test')
     return dsets
 
@@ -29,9 +30,9 @@ def GetDataLoaders(config, dsets):
     dset_loaders = {}
     dset_loaders['train'] = util_data.DataLoader(dsets['train'], batch_size=config.train_batch_size,
                                                  shuffle=True, num_workers=config.num_workers)
-
-
-    dset_loaders['test'] = util_data.DataLoader(dsets['test'], batch_size=config.eval_batch_size,
+    dset_loaders['eval'] = util_data.DataLoader(dsets['eval'], batch_size=config.eval_batch_size,
+                                                shuffle=False, num_workers=config.num_workers)
+    dset_loaders['test'] = util_data.DataLoader(dsets['test'], batch_size=config.test_batch_size,
                                                 shuffle=False, num_workers=config.num_workers)
     return dset_loaders
 
@@ -105,7 +106,7 @@ def main(config):
         if epoch > config.start_epoch:
             print('testing ...')
             model.train(False)
-            mse_loss = detection_eval(dset_loaders['test'], model, use_gpu=use_gpu)
+            mse_loss = detection_eval(dset_loaders['eval'], model, use_gpu=use_gpu)
             print('mean_error=%f' % (mse_loss))
             model.train(True)
 
